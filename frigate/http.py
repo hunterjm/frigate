@@ -449,17 +449,34 @@ def latest_frame(camera_name):
         return "Camera named {} not found".format(camera_name), 404
 
 
-@bp.route("/vod/<path:path>")
-def vod(path):
-    if not os.path.isdir(f"{RECORD_DIR}/{path}"):
+def toDateTime(dateString):
+    return datetime.datetime.strptime(dateString, "%Y-%m-%dT%H:%m:%s")
+
+
+@bp.route("/vod/<camera>")
+def vod(camera):
+    files = glob.glob(f"{RECORD_DIR}/**/**/**/{camera}/*.mp4", recursive=True)
+    files.sort()
+
+    if not len(files):
         return "Recordings not found.", 404
 
-    files = glob.glob(f"{RECORD_DIR}/{path}/*.mp4")
-    files.sort()
+    start_time = request.args.get(
+        'start',
+        default=datetime.datetime.now() - datetime.timedelta(minutes=60),
+        type=toDateTime)
+    end_time = request.args.get(
+        'end',
+        default=start_time + datetime.timedelta(minutes=60),
+        type=toDateTime
+    )
 
     clips = []
     durations = []
     for filename in files:
+        file_dt = datetime.datetime(filename, f"{RECORD_DIR}/%Y-%m/%d/{camera}/%m.%s.mp4")
+        if start_time > file_dt or file_dt > end_time:
+            continue
         clips.append({"type": "source", "path": filename})
         video = cv2.VideoCapture(filename)
         duration = int(
